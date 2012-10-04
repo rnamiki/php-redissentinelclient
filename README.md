@@ -1,4 +1,4 @@
 php-redissentinelclient
 =======================
 
-redissentinelclient for php
+redis sentinel client for php
