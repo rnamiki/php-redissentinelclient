@@ -28,7 +28,7 @@ class RedisSentinelClient
     public function __destruct()
     {
         if ($this->_socket) {
-            $this->_close();
+            @fclose($this->_socket);
         }
     }
 
@@ -202,17 +202,6 @@ class RedisSentinelClient
         return !!($this->_socket);
     }
 
-    /**
-     * Close connection to the sentinel
-     *
-     * @return boolean true on success, false on failure
-     */
-    protected function _close()
-    {
-        $ret = @fclose($this->_socket);
-        $this->_socket = null;
-        return $ret;
-    }
 
     /**
      * See if connection to the sentinel is still active
