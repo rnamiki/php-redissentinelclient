@@ -1,13 +1,15 @@
 <?php
-/*!
+/**
  * @file RedisSentinelClient.php
  * @author Ryota Namiki <ryo180@gmail.com>
+ * @author Casper Langemeijer <casper@langemeijer.eu>
  */
 class RedisSentinelClientNoConnectionExecption extends Exception { }
-/*!
+
+/**
  * @class RedisSentinelClient
  *
- * Redis Sentinel クライアントクラス
+ * Redis Sentinel client class
  */
 class RedisSentinelClient
 {
@@ -19,17 +21,17 @@ class RedisSentinelClient
         $this->_host = $h;
         $this->_port = $p;
     }
+
     public function __destruct() {
         if ($this->_socket) {
             $this->_close();
         }
     }
 
-    /*!
-     * PING コマンド発行
+    /**
+     * Issue PING command
      *
-     * @retval boolean true 疎通成功
-     * @retval boolean false 疎通失敗
+     * @retval boolean true on succes, false on failure
      */
     public function ping() {
         if ($this->_connect()) {
@@ -43,13 +45,13 @@ class RedisSentinelClient
         }
     }
 
-    /*!
-     * SENTINEL masters コマンド発行
+    /**
+     * Issue SENTINEL masters command
      *
-     * @retval array サーバからの返却値を読みやすくした値
+     * @retval array of masters, contains the fields returned by the sentinel
      * @code
      * array (
-     *   [0]  => // master の index
+     *   [0]  => // master index
      *     array(
      *       'name' => 'mymaster',
      *       'host' => 'localhost',
@@ -72,11 +74,11 @@ class RedisSentinelClient
         }
     }
 
-    /*!
-     * SENTINEL slaves コマンド発行
+    /**
+     * Issue SENTINEL slaves command
      *
-     * @param [in] $master string マスター名称
-     * @retval array サーバからの返却値を読みやすくした値
+     * @param $master string master name
+     * @retval array of slaves for the specified masters. returns data array with fiels returned by the sentinel.
      * @code
      * array (
      *   [0]  =>
@@ -102,12 +104,12 @@ class RedisSentinelClient
         }
     }
 
-    /*!
-     * SENTINEL is-master-down-by-addr コマンド発行
+    /**
+     * Issue SENTINEL is-master-down-by-addr command
      *
-     * @param [in] $ip   string  対象サーバIPアドレス
-     * @param [in] $port integer ポート番号
-     * @retval array サーバからの返却値を読みやすくした値
+     * @param $ip string target server IP address
+     * @param $port integer port number
+     * @retval array with fields returned by the sentinel.
      * @code
      * array (
      *   [0]  => 1
@@ -129,11 +131,11 @@ class RedisSentinelClient
         }
     }
 
-    /*!
-     * SENTINEL get-master-addr-by-name コマンド発行
+    /**
+     * Issue SENTINEL get-master-addr-by-name command
      *
-     * @param [in] $master string マスター名称
-     * @retval array サーバからの返却値を読みやすくした値
+     * @param $master string master name
+     * @retval array with fields returned by the sentinel
      * @code
      * array (
      *   [0]  =>
@@ -155,11 +157,11 @@ class RedisSentinelClient
         }
     }
 
-    /*!
-     * SENTINEL reset コマンド発行
+    /**
+     * Issue SENTINEL reset command
      *
-     * @param [in] $pattern string マスター名称パターン(globスタイル)
-     * @retval integer pattern にマッチしたマスターの数
+     * @param $pattern string Master name pattern (glob style)
+     * @retval integer The number of master that matched
      */
     public function reset($pattern) {
         if ($this->_connect()) {
@@ -173,11 +175,10 @@ class RedisSentinelClient
         }
     }
 
-    /*!
-     * Sentinel サーバとの接続を行う
+    /**
+     * This method connects to the sentinel
      *
-     * @retval boolean true  接続成功
-     * @retval boolean false 接続失敗
+     * @retval boolean true on success, false on failure
      */
     protected function _connect() {
         $this->_socket = @fsockopen($this->_host, $this->_port, $en, $es);
@@ -185,11 +186,10 @@ class RedisSentinelClient
         return !!($this->_socket);
     }
 
-    /*!
-     * Sentinel サーバとの接続を切断する
+    /**
+     * Close connection to the sentinel
      *
-     * @retval boolean true  切断成功
-     * @retval boolean false 切断失敗
+     * @retval boolean true on success, false on failure
      */
     protected function _close() {
         $ret = @fclose($this->_socket);
@@ -197,31 +197,30 @@ class RedisSentinelClient
         return $ret;
     }
 
-    /*!
-     * Sentinel サーバからの返却がまだあるか
+    /**
+     * See if connection to the sentinel is still active
      *
-     * @retval boolean true  残データ有り
-     * @retval boolean false 残データ無し
+     * @retval boolean true active, false if disconnected
      */
     protected function _receiving() {
         return !feof($this->_socket);
     }
 
-    /*!
-     * Sentinel サーバへコマンド発行
+    /**
+     * Write a command to the sentinel
      *
-     * @param [in] $c string コマンド文字列
-     * @retval mixed integer 書き込んだバイト数
-     * @retval mixed boolean false エラー発生
+     * @param $c string command
+     * @retval mixed integer number of bytes written
+     * @retval mixed boolean false on failure
      */
     protected function _write($c) {
         return fwrite($this->_socket, $c . "\r\n");
     }
 
-    /*!
-     * Sentinel サーバからの返却値を取得
+    /**
+     * Read data back from the sentinel
      *
-     * @retval string 返却値
+     * @retval string returned
      */
     protected function _get() {
         $buf = '';
@@ -231,11 +230,11 @@ class RedisSentinelClient
         return rtrim($buf, "\r\n+OK\n");
     }
 
-    /*!
-     * 多次元階層を表す Redis レスポンス文字列を配列へ変換
+    /**
+     * Convert to an array Redis response string that represents the multi-dimensional hierarchy
      *
-     * @param [in] $data string サーバからの返却値文字列
-     * @retval array 配列1
+     * @param $data string received from the redis sentinel
+     * @retval array data
      */
     protected function _extract($data) {
         if (!$data) return array();
