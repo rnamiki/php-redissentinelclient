@@ -4,7 +4,7 @@
  * @author Ryota Namiki <ryo180@gmail.com>
  * @author Casper Langemeijer <casper@langemeijer.eu>
  */
-class RedisSentinelClientNoConnectionExecption extends Exception
+class RedisSentinelClientNoConnectionException extends Exception
 {
 }
 
@@ -76,7 +76,7 @@ class RedisSentinelClient
             $this->_close();
             return $data;
         } else {
-            throw new RedisSentinelClientNoConnectionExecption;
+            throw new RedisSentinelClientNoConnectionException;
         }
     }
 
@@ -107,7 +107,7 @@ class RedisSentinelClient
             $this->_close();
             return $data;
         } else {
-            throw new RedisSentinelClientNoConnectionExecption;
+            throw new RedisSentinelClientNoConnectionException;
         }
     }
 
@@ -135,7 +135,7 @@ class RedisSentinelClient
             $this->_close();
             return array(ltrim($state, ':'), $leader);
         } else {
-            throw new RedisSentinelClientNoConnectionExecption;
+            throw new RedisSentinelClientNoConnectionException;
         }
     }
 
@@ -162,7 +162,7 @@ class RedisSentinelClient
             $this->_close();
             return $data;
         } else {
-            throw new RedisSentinelClientNoConnectionExecption;
+            throw new RedisSentinelClientNoConnectionException;
         }
     }
 
@@ -181,7 +181,7 @@ class RedisSentinelClient
             $this->_close();
             return ltrim($data, ':');
         } else {
-            throw new RedisSentinelClientNoConnectionExecption;
+            throw new RedisSentinelClientNoConnectionException;
         }
     }
 
