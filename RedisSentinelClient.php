@@ -197,6 +197,10 @@ class RedisSentinelClient
      */
     protected function _connect()
     {
+        if ($this->_socket !== null) {
+            return !feof($this->_socket);
+        }
+
         $this->_socket = @fsockopen($this->_host, $this->_port, $en, $es);
 
         return !!($this->_socket);
