@@ -35,7 +35,7 @@ class RedisSentinelClient
     /**
      * Issue PING command
      *
-     * @retval boolean true on succes, false on failure
+     * @return boolean true on success, false on failure
      */
     public function ping()
     {
@@ -53,7 +53,7 @@ class RedisSentinelClient
     /**
      * Issue SENTINEL masters command
      *
-     * @retval array of masters, contains the fields returned by the sentinel
+     * @return array of masters, contains the fields returned by the sentinel
      * @code
      * array (
      *   [0]  => // master index
@@ -66,6 +66,7 @@ class RedisSentinelClient
      *   ...
      * )
      * @endcode
+     * @throws RedisSentinelClientNoConnectionException
      */
     public function masters()
     {
@@ -84,7 +85,7 @@ class RedisSentinelClient
      * Issue SENTINEL slaves command
      *
      * @param $master string master name
-     * @retval array of slaves for the specified masters. returns data array with fiels returned by the sentinel.
+     * @return array of slaves for the specified masters. returns data array with fields returned by the sentinel.
      * @code
      * array (
      *   [0]  =>
@@ -97,6 +98,7 @@ class RedisSentinelClient
      *   ...
      * )
      * @endcode
+     * @throws RedisSentinelClientNoConnectionException
      */
     public function slaves($master)
     {
@@ -116,13 +118,14 @@ class RedisSentinelClient
      *
      * @param $ip string target server IP address
      * @param $port integer port number
-     * @retval array with fields returned by the sentinel.
+     * @return array with fields returned by the sentinel.
      * @code
      * array (
      *   [0]  => 1
      *   [1]  => leader
      * )
      * @endcode
+     * @throws RedisSentinelClientNoConnectionException
      */
     public function is_master_down_by_addr($ip, $port)
     {
@@ -143,7 +146,7 @@ class RedisSentinelClient
      * Issue SENTINEL get-master-addr-by-name command
      *
      * @param $master string master name
-     * @retval array with fields returned by the sentinel
+     * @return array with fields returned by the sentinel
      * @code
      * array (
      *   [0]  =>
@@ -152,6 +155,7 @@ class RedisSentinelClient
      *     )
      * )
      * @endcode
+     * @throws RedisSentinelClientNoConnectionException
      */
     public function get_master_addr_by_name($master)
     {
@@ -170,7 +174,8 @@ class RedisSentinelClient
      * Issue SENTINEL reset command
      *
      * @param $pattern string Master name pattern (glob style)
-     * @retval integer The number of master that matched
+     * @return integer The number of master that matched
+     * @throws RedisSentinelClientNoConnectionException
      */
     public function reset($pattern)
     {
@@ -188,7 +193,7 @@ class RedisSentinelClient
     /**
      * This method connects to the sentinel
      *
-     * @retval boolean true on success, false on failure
+     * @return boolean true on success, false on failure
      */
     protected function _connect()
     {
@@ -200,7 +205,7 @@ class RedisSentinelClient
     /**
      * Close connection to the sentinel
      *
-     * @retval boolean true on success, false on failure
+     * @return boolean true on success, false on failure
      */
     protected function _close()
     {
@@ -212,7 +217,7 @@ class RedisSentinelClient
     /**
      * See if connection to the sentinel is still active
      *
-     * @retval boolean true active, false if disconnected
+     * @return boolean true active, false if disconnected
      */
     protected function _receiving()
     {
@@ -223,8 +228,8 @@ class RedisSentinelClient
      * Write a command to the sentinel
      *
      * @param $c string command
-     * @retval mixed integer number of bytes written
-     * @retval mixed boolean false on failure
+     * @return mixed integer number of bytes written
+     * @return mixed boolean false on failure
      */
     protected function _write($c)
     {
@@ -234,7 +239,7 @@ class RedisSentinelClient
     /**
      * Read data back from the sentinel
      *
-     * @retval string returned
+     * @return string returned
      */
     protected function _get()
     {
@@ -249,7 +254,7 @@ class RedisSentinelClient
      * Convert to an array Redis response string that represents the multi-dimensional hierarchy
      *
      * @param $data string received from the redis sentinel
-     * @retval array data
+     * @return array data
      */
     protected function _extract($data)
     {
