@@ -19,10 +19,10 @@ class RedisSentinelClient
     protected $_host;
     protected $_port;
 
-    public function __construct($h, $p = 26379)
+    public function __construct($host, $port = 26379)
     {
-        $this->_host = $h;
-        $this->_port = $p;
+        $this->_host = $host;
+        $this->_port = $port;
     }
 
     public function __destruct()
