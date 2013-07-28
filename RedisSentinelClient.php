@@ -4,7 +4,9 @@
  * @author Ryota Namiki <ryo180@gmail.com>
  * @author Casper Langemeijer <casper@langemeijer.eu>
  */
-class RedisSentinelClientNoConnectionExecption extends Exception { }
+class RedisSentinelClientNoConnectionExecption extends Exception
+{
+}
 
 /**
  * @class RedisSentinelClient
@@ -17,12 +19,14 @@ class RedisSentinelClient
     protected $_host;
     protected $_port;
 
-    public function __construct($h, $p = 26379) {
+    public function __construct($h, $p = 26379)
+    {
         $this->_host = $h;
         $this->_port = $p;
     }
 
-    public function __destruct() {
+    public function __destruct()
+    {
         if ($this->_socket) {
             $this->_close();
         }
@@ -33,7 +37,8 @@ class RedisSentinelClient
      *
      * @retval boolean true on succes, false on failure
      */
-    public function ping() {
+    public function ping()
+    {
         if ($this->_connect()) {
             $this->_write('PING');
             $this->_write('QUIT');
@@ -62,8 +67,9 @@ class RedisSentinelClient
      * )
      * @endcode
      */
-    public function masters() {
-        if($this->_connect()) {
+    public function masters()
+    {
+        if ($this->_connect()) {
             $this->_write('SENTINEL masters');
             $this->_write('QUIT');
             $data = $this->_extract($this->_get());
@@ -92,7 +98,8 @@ class RedisSentinelClient
      * )
      * @endcode
      */
-    public function slaves($master) {
+    public function slaves($master)
+    {
         if ($this->_connect()) {
             $this->_write('SENTINEL slaves ' . $master);
             $this->_write('QUIT');
@@ -117,13 +124,14 @@ class RedisSentinelClient
      * )
      * @endcode
      */
-    public function is_master_down_by_addr($ip, $port) {
+    public function is_master_down_by_addr($ip, $port)
+    {
         if ($this->_connect()) {
             $this->_write('SENTINEL is-master-down-by-addr ' . $ip . ' ' . $port);
             $this->_write('QUIT');
             $data = $this->_get();
             $lines = explode("\r\n", $data, 4);
-            list (/* elem num*/, $state, /* length */, $leader) = $lines;
+            list ( /* elem num*/, $state, /* length */, $leader) = $lines;
             $this->_close();
             return array(ltrim($state, ':'), $leader);
         } else {
@@ -145,7 +153,8 @@ class RedisSentinelClient
      * )
      * @endcode
      */
-    public function get_master_addr_by_name($master) {
+    public function get_master_addr_by_name($master)
+    {
         if ($this->_connect()) {
             $this->_write('SENTINEL get-master-addr-by-name ' . $master);
             $this->_write('QUIT');
@@ -163,7 +172,8 @@ class RedisSentinelClient
      * @param $pattern string Master name pattern (glob style)
      * @retval integer The number of master that matched
      */
-    public function reset($pattern) {
+    public function reset($pattern)
+    {
         if ($this->_connect()) {
             $this->_write('SENTINEL reset ' . $pattern);
             $this->_write('QUIT');
@@ -180,7 +190,8 @@ class RedisSentinelClient
      *
      * @retval boolean true on success, false on failure
      */
-    protected function _connect() {
+    protected function _connect()
+    {
         $this->_socket = @fsockopen($this->_host, $this->_port, $en, $es);
 
         return !!($this->_socket);
@@ -191,7 +202,8 @@ class RedisSentinelClient
      *
      * @retval boolean true on success, false on failure
      */
-    protected function _close() {
+    protected function _close()
+    {
         $ret = @fclose($this->_socket);
         $this->_socket = null;
         return $ret;
@@ -202,7 +214,8 @@ class RedisSentinelClient
      *
      * @retval boolean true active, false if disconnected
      */
-    protected function _receiving() {
+    protected function _receiving()
+    {
         return !feof($this->_socket);
     }
 
@@ -213,7 +226,8 @@ class RedisSentinelClient
      * @retval mixed integer number of bytes written
      * @retval mixed boolean false on failure
      */
-    protected function _write($c) {
+    protected function _write($c)
+    {
         return fwrite($this->_socket, $c . "\r\n");
     }
 
@@ -222,9 +236,10 @@ class RedisSentinelClient
      *
      * @retval string returned
      */
-    protected function _get() {
+    protected function _get()
+    {
         $buf = '';
-        while($this->_receiving()) {
+        while ($this->_receiving()) {
             $buf .= fgets($this->_socket);
         }
         return rtrim($buf, "\r\n+OK\n");
@@ -236,8 +251,11 @@ class RedisSentinelClient
      * @param $data string received from the redis sentinel
      * @retval array data
      */
-    protected function _extract($data) {
-        if (!$data) return array();
+    protected function _extract($data)
+    {
+        if (!$data) {
+            return array();
+        }
         $lines = explode("\r\n", $data);
         $is_root = $is_child = false;
         $c = count($lines);
@@ -250,19 +268,21 @@ class RedisSentinelClient
                     $is_root = true;
                     $current = array();
                     continue;
-                } else if (!$is_child) {
-                    $is_child = true;
-                    continue;
                 } else {
-                    $is_root = $is_child = false;
-                    $results[] = $current;
-                    continue;
+                    if (!$is_child) {
+                        $is_child = true;
+                        continue;
+                    } else {
+                        $is_root = $is_child = false;
+                        $results[] = $current;
+                        continue;
+                    }
                 }
             }
             $keylen = $lines[$i++];
-            $key    = $lines[$i++];
+            $key = $lines[$i++];
             $vallen = $lines[$i++];
-            $val    = $lines[$i++];
+            $val = $lines[$i++];
             $current[$key] = $val;
 
             --$i;
