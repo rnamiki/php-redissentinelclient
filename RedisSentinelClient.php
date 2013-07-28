@@ -202,17 +202,6 @@ class RedisSentinelClient
         return (bool)$this->_socket;
     }
 
-
-    /**
-     * See if connection to the sentinel is still active
-     *
-     * @return boolean true active, false if disconnected
-     */
-    protected function _receiving()
-    {
-        return !feof($this->_socket);
-    }
-
     /**
      * Write a command to the sentinel
      *
