@@ -199,7 +199,7 @@ class RedisSentinelClient
 
         $this->_socket = @fsockopen($this->_host, $this->_port, $en, $es);
 
-        return !!($this->_socket);
+        return (bool)$this->_socket;
     }
 
 
