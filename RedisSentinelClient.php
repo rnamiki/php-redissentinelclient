@@ -39,15 +39,14 @@ class RedisSentinelClient
      */
     public function ping()
     {
-        if ($this->_connect()) {
-            $this->_write('PING');
-            $this->_write('QUIT');
-            $data = $this->_get();
-            $this->_close();
-            return ($data === '+PONG');
-        } else {
+        if (!$this->_connect()) {
             return false;
         }
+
+        $this->_write('PING');
+        $data = $this->_getLine();
+
+        return ($data === '+PONG');
     }
 
     /**
@@ -70,15 +69,14 @@ class RedisSentinelClient
      */
     public function masters()
     {
-        if ($this->_connect()) {
-            $this->_write('SENTINEL masters');
-            $this->_write('QUIT');
-            $data = $this->_extract($this->_get());
-            $this->_close();
-            return $data;
-        } else {
+        if (!$this->_connect()) {
             throw new RedisSentinelClientNoConnectionException;
         }
+
+        $this->_write('SENTINEL masters');
+        $data = $this->_readReply();
+
+        return $data;
     }
 
     /**
@@ -102,15 +100,14 @@ class RedisSentinelClient
      */
     public function slaves($master)
     {
-        if ($this->_connect()) {
-            $this->_write('SENTINEL slaves ' . $master);
-            $this->_write('QUIT');
-            $data = $this->_extract($this->_get());
-            $this->_close();
-            return $data;
-        } else {
+        if (!$this->_connect()) {
             throw new RedisSentinelClientNoConnectionException;
         }
+
+        $this->_write('SENTINEL slaves ' . $master);
+        $data = $this->_readReply();
+
+        return $data;
     }
 
     /**
@@ -129,17 +126,18 @@ class RedisSentinelClient
      */
     public function is_master_down_by_addr($ip, $port)
     {
-        if ($this->_connect()) {
-            $this->_write('SENTINEL is-master-down-by-addr ' . $ip . ' ' . $port);
-            $this->_write('QUIT');
-            $data = $this->_get();
-            $lines = explode("\r\n", $data, 4);
-            list ( /* elem num*/, $state, /* length */, $leader) = $lines;
-            $this->_close();
-            return array(ltrim($state, ':'), $leader);
-        } else {
+        if (!$this->_connect()) {
             throw new RedisSentinelClientNoConnectionException;
         }
+
+        $this->_write('SENTINEL is-master-down-by-addr ' . $ip . ' ' . $port);
+
+        $this->_getLine();
+        $state = $this->_getLine();
+        $this->_getLine();
+        $leader = $this->_getLine();
+
+        return array($state, $leader);
     }
 
     /**
@@ -159,15 +157,14 @@ class RedisSentinelClient
      */
     public function get_master_addr_by_name($master)
     {
-        if ($this->_connect()) {
-            $this->_write('SENTINEL get-master-addr-by-name ' . $master);
-            $this->_write('QUIT');
-            $data = $this->_extract($this->_get());
-            $this->_close();
-            return $data;
-        } else {
+        if (!$this->_connect()) {
             throw new RedisSentinelClientNoConnectionException;
         }
+
+        $this->_write('SENTINEL get-master-addr-by-name ' . $master);
+        $data = $this->_readReply();
+
+        return $data;
     }
 
     /**
@@ -179,15 +176,14 @@ class RedisSentinelClient
      */
     public function reset($pattern)
     {
-        if ($this->_connect()) {
-            $this->_write('SENTINEL reset ' . $pattern);
-            $this->_write('QUIT');
-            $data = $this->_get();
-            $this->_close();
-            return ltrim($data, ':');
-        } else {
+        if (!$this->_connect()) {
             throw new RedisSentinelClientNoConnectionException;
         }
+
+        $this->_write('SENTINEL reset ' . $pattern);
+        $data = $this->_getLine();
+
+        return $data;
     }
 
     /**
@@ -229,63 +225,55 @@ class RedisSentinelClient
         return fwrite($this->_socket, $c . "\r\n");
     }
 
-    /**
-     * Read data back from the sentinel
-     *
-     * @return string returned
-     */
-    protected function _get()
+    private function _getLine()
     {
-        $buf = '';
-        while ($this->_receiving()) {
-            $buf .= fgets($this->_socket);
-        }
-        return rtrim($buf, "\r\n+OK\n");
+        return substr(fgets($this->_socket), 0, -2); // strips CRLF
     }
 
     /**
-     * Convert to an array Redis response string that represents the multi-dimensional hierarchy
-     *
-     * @param $data string received from the redis sentinel
-     * @return array data
+     * This function parses the reply on a sentinel command
+     * @return array
      */
-    protected function _extract($data)
+    private function _readReply()
     {
-        if (!$data) {
-            return array();
-        }
-        $lines = explode("\r\n", $data);
-        $is_root = $is_child = false;
-        $c = count($lines);
+        $isRoot = $isChild = false;
         $results = $current = array();
-        for ($i = 0; $i < $c; $i++) {
-            $str = $lines[$i];
-            $prefix = substr($str, 0, 1);
-            if ($prefix === '*') {
-                if (!$is_root) {
-                    $is_root = true;
+        $linesToRead = 1;
+        $key = null;
+
+        while (!feof($this->_socket) && $linesToRead > 0) {
+
+            $str = $this->_getLine();
+            $linesToRead--;
+
+            if (strlen($str) > 0 && $str[0] === '*') {
+                $linesToRead += (int)substr($str, 1);
+
+                if (!$isRoot) {
+                    $isRoot = true;
                     $current = array();
-                    continue;
                 } else {
-                    if (!$is_child) {
-                        $is_child = true;
-                        continue;
+                    if (!$isChild) {
+                        $isChild = true;
                     } else {
-                        $is_root = $is_child = false;
+                        $isRoot = $isChild = false;
                         $results[] = $current;
-                        continue;
                     }
                 }
+            } elseif (strlen($str) > 0 && $str[0] === '$') {
+                // ignore number of $chars = (int) substr($str, 1);
+                $linesToRead++;
+            } else {
+                if ($key === null) {
+                    $key = $str;
+                } else {
+                    $current[$key] = $str;
+                    $key = null;
+                }
             }
-            $keylen = $lines[$i++];
-            $key = $lines[$i++];
-            $vallen = $lines[$i++];
-            $val = $lines[$i++];
-            $current[$key] = $val;
-
-            --$i;
         }
         $results[] = $current;
+
         return $results;
     }
 }
