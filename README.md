@@ -128,3 +128,37 @@ every slave and sentinel already discovered and associated with the master.
 
 The return value is the number of master that matched the pattern
 
+
+### info ###
+
+	$info = $RedisSentinel->info();
+
+The INFO command returns information and statistics about the server in a format that is simple to parse by
+computers and easy to read by humans. The return value is a multiline string. \n is used for line-endings.
+
+An example of the string returned:
+
+	# Server
+	redis_version:2.6.13
+	redis_git_sha1:00000000
+	redis_git_dirty:0
+	redis_mode:sentinel
+	os:Linux 2.6.32-5-xen-amd64 x86_64
+	arch_bits:64
+	multiplexing_api:epoll
+	gcc_version:4.4.5
+	process_id:12265
+	run_id:5671125a89caf7ca24bc3fa1be0ec3702594223b
+	tcp_port:26379
+	uptime_in_seconds:6146
+	uptime_in_days:0
+	hz:10
+	lru_clock:1282700
+
+	# Sentinel
+	sentinel_masters:32
+	sentinel_tilt:0
+	sentinel_running_scripts:0
+	sentinel_scripts_queue_length:0
+	master0:name=M12,status=ok,address=192.168.1.1:6012,slaves=1,sentinels=2
+	master1:name=M13,status=ok,address=192.168.1.1:6013,slaves=1,sentinels=2
