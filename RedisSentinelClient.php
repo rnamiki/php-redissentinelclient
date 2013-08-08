@@ -219,50 +219,82 @@ class RedisSentinelClient
         return substr(fgets($this->_socket), 0, -2); // strips CRLF
     }
 
+    private function _getData($size)
+    {
+        $size += 2;
+        $data = '';
+        while (strlen($data) < $size) {
+            $data = fread($this->_socket, $size - strlen($data));
+        }
+        $data = substr($data, 0, -2); // strips last CRLF
+        $data = str_replace("\r\n", "\n", $data); // convert CRLF to LF
+        return $data;
+    }
+
     /**
      * This function parses the reply on a sentinel command
      * @return array
      */
     private function _readReply()
     {
-        $isRoot = $isChild = false;
-        $results = $current = array();
-        $linesToRead = 1;
-        $key = null;
 
-        while (!feof($this->_socket) && $linesToRead > 0) {
-
-            $str = $this->_getLine();
-            $linesToRead--;
-
-            if (strlen($str) > 0 && $str[0] === '*') {
-                $linesToRead += (int)substr($str, 1);
-
-                if (!$isRoot) {
-                    $isRoot = true;
-                    $current = array();
-                } else {
-                    if (!$isChild) {
-                        $isChild = true;
-                    } else {
-                        $isRoot = $isChild = false;
-                        $results[] = $current;
-                    }
-                }
-            } elseif (strlen($str) > 0 && $str[0] === '$') {
-                // ignore number of $chars = (int) substr($str, 1);
-                $linesToRead++;
-            } else {
-                if ($key === null) {
-                    $key = $str;
-                } else {
-                    $current[$key] = $str;
-                    $key = null;
-                }
-            }
+        if (feof($this->_socket)) {
+            return false;
         }
-        $results[] = $current;
 
-        return $results;
+        $str = $this->_getLine();
+        $prefix = $str[0];
+        $payload = substr($str, 1);
+
+        switch ($prefix) {
+            case '+':
+                return $payload;
+
+            case '$':
+                $size = (int)$payload;
+                if ($size == -1) {
+                    return null;
+                }
+                $str = $this->_getData($size);
+                return $str;
+
+            case '*': //array
+                $size = (int)$payload;
+                if ($size == -1) {
+                    return null;
+                }
+
+                $allStrings = ($size % 2) == 0;
+                $multibulk = array();
+                $multibulkAssoc = array();
+
+                for ($i = 0; $i < $size; $i++) {
+                    $reply = $this->_readReply();
+                    if (!is_string($reply)) {
+                        $allStrings = false;
+                    }
+
+                    if ($allStrings) {
+                        if (($i % 2) == 0) {
+                            $key = $reply;
+                        } else {
+                            $multibulkAssoc[$key] = $reply;
+                        }
+                    }
+                    $multibulk[$i] = $reply;
+                }
+
+                if ($allStrings) {
+                    return $multibulkAssoc;
+                }
+                return $multibulk;
+
+            case ':': // int
+                return (int)$payload;
+
+            case '-':
+                return false;
+
+        }
     }
 }
