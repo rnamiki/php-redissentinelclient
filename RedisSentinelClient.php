@@ -1,13 +1,17 @@
 <?php
-/*!
+/**
  * @file RedisSentinelClient.php
  * @author Ryota Namiki <ryo180@gmail.com>
+ * @author Casper Langemeijer <casper@langemeijer.eu>
  */
-class RedisSentinelClientNoConnectionExecption extends Exception { }
-/*!
+class RedisSentinelClientNoConnectionException extends Exception
+{
+}
+
+/**
  * @class RedisSentinelClient
  *
- * Redis Sentinel クライアントクラス
+ * Redis Sentinel client class
  */
 class RedisSentinelClient
 {
@@ -15,41 +19,60 @@ class RedisSentinelClient
     protected $_host;
     protected $_port;
 
-    public function __construct($h, $p = 26379) {
-        $this->_host = $h;
-        $this->_port = $p;
+    public function __construct($host, $port = 26379)
+    {
+        $this->_host = $host;
+        $this->_port = $port;
     }
-    public function __destruct() {
+
+    public function __destruct()
+    {
         if ($this->_socket) {
-            $this->_close();
+            @fclose($this->_socket);
         }
     }
 
-    /*!
-     * PING コマンド発行
+    /**
+     * Issue PING command
      *
-     * @retval boolean true 疎通成功
-     * @retval boolean false 疎通失敗
+     * @return boolean true on success, false on failure
      */
-    public function ping() {
-        if ($this->_connect()) {
-            $this->_write('PING');
-            $this->_write('QUIT');
-            $data = $this->_get();
-            $this->_close();
-            return ($data === '+PONG');
-        } else {
+    public function ping()
+    {
+        if (!$this->_connect()) {
             return false;
         }
+
+        $this->_write('PING');
+        $data = $this->_getLine();
+
+        return ($data === '+PONG');
     }
 
-    /*!
-     * SENTINEL masters コマンド発行
+    /**
+     * Issue INFO command
      *
-     * @retval array サーバからの返却値を読みやすくした値
+     * @return string containing some information the redis sentinel wants to share with us
+     */
+    public function info()
+    {
+        if (!$this->_connect()) {
+            return false;
+        }
+
+        $this->_write('INFO');
+        $data = $this->_readReply();
+
+        return $data;
+    }
+
+    /**
+     * Issue SENTINEL masters command
+     *
+     * @return array of masters, contains the fields returned by the sentinel
      * @code
      * array (
-     *   [0]  => // master の index
+     *   [0]  => // master index
      *     array(
      *       'name' => 'mymaster',
      *       'host' => 'localhost',
@@ -59,24 +82,25 @@ class RedisSentinelClient
      *   ...
      * )
      * @endcode
+     * @throws RedisSentinelClientNoConnectionException
      */
-    public function masters() {
-        if($this->_connect()) {
-            $this->_write('SENTINEL masters');
-            $this->_write('QUIT');
-            $data = $this->_extract($this->_get());
-            $this->_close();
-            return $data;
-        } else {
-            throw new RedisSentinelClientNoConnectionExecption;
+    public function masters()
+    {
+        if (!$this->_connect()) {
+            throw new RedisSentinelClientNoConnectionException;
         }
+
+        $this->_write('SENTINEL masters');
+        $data = $this->_readReply();
+
+        return $data;
     }
 
-    /*!
-     * SENTINEL slaves コマンド発行
+    /**
+     * Issue SENTINEL slaves command
      *
-     * @param [in] $master string マスター名称
-     * @retval array サーバからの返却値を読みやすくした値
+     * @param $master string master name
+     * @return array of slaves for the specified masters. returns data array with fields returned by the sentinel.
      * @code
      * array (
      *   [0]  =>
@@ -89,51 +113,55 @@ class RedisSentinelClient
      *   ...
      * )
      * @endcode
+     * @throws RedisSentinelClientNoConnectionException
      */
-    public function slaves($master) {
-        if ($this->_connect()) {
-            $this->_write('SENTINEL slaves ' . $master);
-            $this->_write('QUIT');
-            $data = $this->_extract($this->_get());
-            $this->_close();
-            return $data;
-        } else {
-            throw new RedisSentinelClientNoConnectionExecption;
+    public function slaves($master)
+    {
+        if (!$this->_connect()) {
+            throw new RedisSentinelClientNoConnectionException;
         }
+
+        $this->_write('SENTINEL slaves ' . $master);
+        $data = $this->_readReply();
+
+        return $data;
     }
 
-    /*!
-     * SENTINEL is-master-down-by-addr コマンド発行
+    /**
+     * Issue SENTINEL is-master-down-by-addr command
      *
-     * @param [in] $ip   string  対象サーバIPアドレス
-     * @param [in] $port integer ポート番号
-     * @retval array サーバからの返却値を読みやすくした値
+     * @param $ip string target server IP address
+     * @param $port integer port number
+     * @return array with fields returned by the sentinel.
      * @code
      * array (
      *   [0]  => 1
      *   [1]  => leader
      * )
      * @endcode
+     * @throws RedisSentinelClientNoConnectionException
      */
-    public function is_master_down_by_addr($ip, $port) {
-        if ($this->_connect()) {
-            $this->_write('SENTINEL is-master-down-by-addr ' . $ip . ' ' . $port);
-            $this->_write('QUIT');
-            $data = $this->_get();
-            $lines = explode("\r\n", $data, 4);
-            list (/* elem num*/, $state, /* length */, $leader) = $lines;
-            $this->_close();
-            return array(ltrim($state, ':'), $leader);
-        } else {
-            throw new RedisSentinelClientNoConnectionExecption;
+    public function is_master_down_by_addr($ip, $port)
+    {
+        if (!$this->_connect()) {
+            throw new RedisSentinelClientNoConnectionException;
         }
+
+        $this->_write('SENTINEL is-master-down-by-addr ' . $ip . ' ' . $port);
+
+        $this->_getLine();
+        $state = $this->_getLine();
+        $this->_getLine();
+        $leader = $this->_getLine();
+
+        return array($state, $leader);
     }
 
-    /*!
-     * SENTINEL get-master-addr-by-name コマンド発行
+    /**
+     * Issue SENTINEL get-master-addr-by-name command
      *
-     * @param [in] $master string マスター名称
-     * @retval array サーバからの返却値を読みやすくした値
+     * @param $master string master name
+     * @return array with fields returned by the sentinel
      * @code
      * array (
      *   [0]  =>
@@ -142,133 +170,148 @@ class RedisSentinelClient
      *     )
      * )
      * @endcode
+     * @throws RedisSentinelClientNoConnectionException
      */
-    public function get_master_addr_by_name($master) {
-        if ($this->_connect()) {
-            $this->_write('SENTINEL get-master-addr-by-name ' . $master);
-            $this->_write('QUIT');
-            $data = $this->_extract($this->_get());
-            $this->_close();
-            return $data;
-        } else {
-            throw new RedisSentinelClientNoConnectionExecption;
+    public function get_master_addr_by_name($master)
+    {
+        if (!$this->_connect()) {
+            throw new RedisSentinelClientNoConnectionException;
         }
+
+        $this->_write('SENTINEL get-master-addr-by-name ' . $master);
+        $data = $this->_readReply();
+
+        return $data;
     }
 
-    /*!
-     * SENTINEL reset コマンド発行
+    /**
+     * Issue SENTINEL reset command
      *
-     * @param [in] $pattern string マスター名称パターン(globスタイル)
-     * @retval integer pattern にマッチしたマスターの数
+     * @param $pattern string Master name pattern (glob style)
+     * @return integer The number of master that matched
+     * @throws RedisSentinelClientNoConnectionException
      */
-    public function reset($pattern) {
-        if ($this->_connect()) {
-            $this->_write('SENTINEL reset ' . $pattern);
-            $this->_write('QUIT');
-            $data = $this->_get();
-            $this->_close();
-            return ltrim($data, ':');
-        } else {
-            throw new RedisSentinelClientNoConnectionExecption;
+    public function reset($pattern)
+    {
+        if (!$this->_connect()) {
+            throw new RedisSentinelClientNoConnectionException;
         }
+
+        $this->_write('SENTINEL reset ' . $pattern);
+        $data = $this->_getLine();
+
+        return $data;
     }
 
-    /*!
-     * Sentinel サーバとの接続を行う
+    /**
+     * This method connects to the sentinel
      *
-     * @retval boolean true  接続成功
-     * @retval boolean false 接続失敗
+     * @return boolean true on success, false on failure
      */
-    protected function _connect() {
+    protected function _connect()
+    {
+        if ($this->_socket !== null) {
+            return !feof($this->_socket);
+        }
+
         $this->_socket = @fsockopen($this->_host, $this->_port, $en, $es);
 
-        return !!($this->_socket);
+        return (bool)$this->_socket;
     }
 
-    /*!
-     * Sentinel サーバとの接続を切断する
+    /**
+     * Write a command to the sentinel
      *
-     * @retval boolean true  切断成功
-     * @retval boolean false 切断失敗
+     * @param $c string command
+     * @return mixed integer number of bytes written
+     * @return mixed boolean false on failure
      */
-    protected function _close() {
-        $ret = @fclose($this->_socket);
-        $this->_socket = null;
-        return $ret;
-    }
-
-    /*!
-     * Sentinel サーバからの返却がまだあるか
-     *
-     * @retval boolean true  残データ有り
-     * @retval boolean false 残データ無し
-     */
-    protected function _receiving() {
-        return !feof($this->_socket);
-    }
-
-    /*!
-     * Sentinel サーバへコマンド発行
-     *
-     * @param [in] $c string コマンド文字列
-     * @retval mixed integer 書き込んだバイト数
-     * @retval mixed boolean false エラー発生
-     */
-    protected function _write($c) {
+    protected function _write($c)
+    {
         return fwrite($this->_socket, $c . "\r\n");
     }
 
-    /*!
-     * Sentinel サーバからの返却値を取得
-     *
-     * @retval string 返却値
-     */
-    protected function _get() {
-        $buf = '';
-        while($this->_receiving()) {
-            $buf .= fgets($this->_socket);
-        }
-        return rtrim($buf, "\r\n+OK\n");
+    private function _getLine()
+    {
+        return substr(fgets($this->_socket), 0, -2); // strips CRLF
     }
 
-    /*!
-     * 多次元階層を表す Redis レスポンス文字列を配列へ変換
-     *
-     * @param [in] $data string サーバからの返却値文字列
-     * @retval array 配列1
-     */
-    protected function _extract($data) {
-        if (!$data) return array();
-        $lines = explode("\r\n", $data);
-        $is_root = $is_child = false;
-        $c = count($lines);
-        $results = $current = array();
-        for ($i = 0; $i < $c; $i++) {
-            $str = $lines[$i];
-            $prefix = substr($str, 0, 1);
-            if ($prefix === '*') {
-                if (!$is_root) {
-                    $is_root = true;
-                    $current = array();
-                    continue;
-                } else if (!$is_child) {
-                    $is_child = true;
-                    continue;
-                } else {
-                    $is_root = $is_child = false;
-                    $results[] = $current;
-                    continue;
-                }
-            }
-            $keylen = $lines[$i++];
-            $key    = $lines[$i++];
-            $vallen = $lines[$i++];
-            $val    = $lines[$i++];
-            $current[$key] = $val;
-
-            --$i;
+    private function _getData($size)
+    {
+        $size += 2;
+        $data = '';
+        while (strlen($data) < $size) {
+            $data = fread($this->_socket, $size - strlen($data));
         }
-        $results[] = $current;
-        return $results;
+        $data = substr($data, 0, -2); // strips last CRLF
+        $data = str_replace("\r\n", "\n", $data); // convert CRLF to LF
+        return $data;
+    }
+
+    /**
+     * This function parses the reply on a sentinel command
+     * @return array
+     */
+    private function _readReply()
+    {
+
+        if (feof($this->_socket)) {
+            return false;
+        }
+
+        $str = $this->_getLine();
+        $prefix = $str[0];
+        $payload = substr($str, 1);
+
+        switch ($prefix) {
+            case '+':
+                return $payload;
+
+            case '$':
+                $size = (int)$payload;
+                if ($size == -1) {
+                    return null;
+                }
+                $str = $this->_getData($size);
+                return $str;
+
+            case '*': //array
+                $size = (int)$payload;
+                if ($size == -1) {
+                    return null;
+                }
+
+                $allStrings = ($size % 2) == 0;
+                $multibulk = array();
+                $multibulkAssoc = array();
+
+                for ($i = 0; $i < $size; $i++) {
+                    $reply = $this->_readReply();
+                    if (!is_string($reply)) {
+                        $allStrings = false;
+                    }
+
+                    if ($allStrings) {
+                        if (($i % 2) == 0) {
+                            $key = $reply;
+                        } else {
+                            $multibulkAssoc[$key] = $reply;
+                        }
+                    }
+                    $multibulk[$i] = $reply;
+                }
+
+                if ($allStrings) {
+                    return $multibulkAssoc;
+                }
+                return $multibulk;
+
+            case ':': // int
+                return (int)$payload;
+
+            case '-':
+                return false;
+
+        }
     }
 }
