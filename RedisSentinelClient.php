@@ -50,6 +50,23 @@ class RedisSentinelClient
     }
 
     /**
+     * Issue INFO command
+     *
+     * @return string containing some information the redis sentinel wants to share with us
+     */
+    public function info()
+    {
+        if (!$this->_connect()) {
+            return false;
+        }
+
+        $this->_write('INFO');
+        $data = $this->_readReply();
+
+        return $data;
+    }
+
+    /**
      * Issue SENTINEL masters command
      *
      * @return array of masters, contains the fields returned by the sentinel
